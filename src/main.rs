@@ -1,86 +1,97 @@
-use nalgebra::Vector4;
+use nalgebra::Vector6;
 use plotpy::{Plot, Shapes};
 
 mod quadrotor;
 
+/*
+position, velocity, acceleration : are coming from the trajectory planner
+i.e:
+    - state_des = [pos, vel, acc]
+    - y_state_des = [pos, vel, acc]
+    - x_state_des = [pos, vel, acc]
+ */
+
 
 fn main() {
+
+    // trajectory planner
+    let desired = quadrotor::State{
+        z: 10.0, y: 20.0, phi: 0.0,
+        z_dot: 0.1, y_dot: 0.1, phi_dot: 0.0,
+        z_ddot: 0.0, y_ddot: 0.0, phi_ddot: 0.0
+    };
+
+    // params
     let gravity: f32 = 9.81;
-    // setting up a 27g quadrotor
-    let quad_mass = 0.027;
-    let mut quadrotor = quadrotor::Quadrotor::new(quad_mass, gravity);
+    let quad_mass = 0.027;  // 27g
+    let min_thrust = 0.16;  // N
+    let max_thrust = 0.56;  // N
+    let I_x = 0.01;  // Moment of inertia around the x-axis
 
-    let min_thrust = 0.16;
-    let max_thrust = 0.56;
-
-    let mut z_state = Vector4::new(0.0, 0.0, 0.0, 0.0);                                             // position Z, velocity Z, yaw angle psi, angular velocity psi_dot
-    let z_state_des = Vector4::new(50.0, 1.0, 0.0, 0.0);                                           
+    // actual state: z, y, phi, z_dot, y_dot, phi_dot
+    let mut state = Vector6::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    
+    // for simulation and plotting
     let dt: f32 = 0.01;
-    let z_ff: f32 = 0.0;
     let iter = 10000;
-
     let mut points: Vec<Vec<f32>> = Vec::new();
     let mut target_points: Vec<Vec<f32>> = Vec::new();
 
-    for x in 0..iter {
-        let mut z_thrust = quadrotor.control_altitude(&z_state, &z_state_des, &z_ff, dt);
-        z_thrust = z_thrust.clamp(min_thrust, max_thrust);
+    // init
+    let mut quadrotor = quadrotor::Quadrotor::new(quad_mass, gravity, I_x);
 
-        let net_thrust = quad_mass * gravity - z_thrust;
-        let z_ddot: f32 = net_thrust / quad_mass;
-        let psi_ddot: f32 = 0.0;
+    for _ in 0..iter {
+        let mut u1 = quadrotor.control_altitude(&state, &desired, dt);  // Collective thrust
+        u1 = u1.clamp(min_thrust, max_thrust);
 
-        z_state = update_state(dt, &z_state, z_ddot, psi_ddot);
+        let phi_cmd = quadrotor.control_lateral(u1, &state, &desired);
 
-        // println!("Force (N): {}", z_thrust);
-        // println!("Acceleration: {}", z_ddot);
-        // println!("Z state: {}", z_state);
+        // inner loop
+        for _ in 0..10 {
+            let u2 = quadrotor.control_attitude(&state, &desired, phi_cmd);  // Moment about the the x-axis
+            
+            // for simulation and plotting
+            let phi = state[2];
+            let z_ddot: f32 = gravity - u1 * phi.cos() / quad_mass;
+            let y_ddot: f32 = u1 / quad_mass * phi.sin();
+            let phi_ddot: f32 = u2 / I_x;        
+            
+            state = update_state(dt, &state, z_ddot, y_ddot, phi_ddot);
+            points.push(vec![state[1], state[0]]);
+            target_points.push(vec![desired.y, desired.z]);
+        }
 
-        points.push(vec![x as f32, z_state[0]]);
-        target_points.push(vec![x as f32, z_state_des[0]]);
+        println!("{}", state);
+
     }
 
-    // plot
-    let mut shapes = Shapes::new();
-    shapes.set_line_width(1.0).set_edge_color("blue").set_face_color("#ffffff");
-    shapes.draw_polyline(&points, false);
+    // // plot
+    // let mut shapes = Shapes::new();
+    // shapes.set_line_width(1.0).set_edge_color("blue").set_face_color("#ffffff");
+    // shapes.draw_polyline(&points, false);
 
-    shapes.set_line_width(1.0).set_edge_color("red").set_face_color("#ffffff");
-    shapes.draw_polyline(&target_points, false);
+    // shapes.set_line_width(1.0).set_edge_color("red").set_face_color("#ffffff");
+    // shapes.draw_polyline(&target_points, false);
     
-    let mut plot = Plot::new();
-    plot.set_range(0.0, iter as f64, 0.0, 100.0)
-        .add(&shapes);
-    _ = plot.save("altitude_pd_controller.png");
+    // let mut plot = Plot::new();
+    // plot.set_range(0.0, 100.0, 0.0, 100.0)
+    //     .add(&shapes);
+    // _ = plot.save("altitude_pd_controller.png");
 
 
 }
 
-fn update_state(dt: f32, z_state: &Vector4<f32>, z_ddot: f32, psi_ddot: f32) -> Vector4<f32> {
+fn update_state(dt: f32, state: &Vector6<f32>, z_ddot: f32, y_ddot: f32, phi_ddot: f32) -> Vector6<f32> {
     /* Update state (approximation - only for simulation)
     step 1 : find what is current the acceleration and angular acceleration of the system
     step 2 : reuse these accelerations to update the associated velocity and rate of change (integral)
     step 3 ; reuse velocity to update associated position (integral)
     */
-    let z_dot_state: Vector4<f32> = Vector4::new(z_state[1], z_ddot, z_state[3], psi_ddot);
-    let delta = z_dot_state * dt;
+    
+    // vel_z, vel_y, angle_vel_phi, acc_z, acc_y, acc_phi
+    let state_dot: Vector6<f32> = Vector6::new(state[3], state[4], state[5], z_ddot, y_ddot, phi_ddot);  
 
-    let new_state = z_state + delta;
+    // new state after integration : pos_z, pos_y, angle_phi, vel_z, vel_y, ang_vel_phi
+    let new_state = state + state_dot * dt;
     new_state
 }
-
-
-
-
-
-// // 2
-    // let delta_z_dot: f32 = z_ddot * dt;
-    // let delta_psi_dot: f32 = psi_ddot * dt;
-    // z_state[1] += delta_z_dot;  // velocity
-    // z_state[3] += delta_psi_dot; // angular velocity
-
-    // // 3
-    // let delta_z: f32 = z_state[1] * dt;
-    // let delta_psi: f32 = z_state[3] * dt;
-    // z_state[0] += delta_z;  // position
-    // z_state[2] += delta_psi;  // yaw angle
