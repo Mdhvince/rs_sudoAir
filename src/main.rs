@@ -8,21 +8,22 @@ fn main() {
     let gravity: f32 = 9.81;
     // setting up a 27g quadrotor
     let quad_mass = 0.027;
-    let quadrotor = quadrotor::Quadrotor::new(quad_mass, gravity);
+    let mut quadrotor = quadrotor::Quadrotor::new(quad_mass, gravity);
 
     let min_thrust = 0.16;
     let max_thrust = 0.56;
 
     let mut z_state = Vector4::new(0.0, 0.0, 0.0, 0.0);                                             // position Z, velocity Z, yaw angle psi, angular velocity psi_dot
-    let z_state_des = Vector4::new(50.0, 5.0, 0.0, 0.0);                                           
+    let z_state_des = Vector4::new(50.0, 1.0, 0.0, 0.0);                                           
     let dt: f32 = 0.01;
     let z_ff: f32 = 0.0;
     let iter = 10000;
 
     let mut points: Vec<Vec<f32>> = Vec::new();
+    let mut target_points: Vec<Vec<f32>> = Vec::new();
 
     for x in 0..iter {
-        let mut z_thrust = quadrotor.control_altitude(&z_state, &z_state_des, &z_ff);
+        let mut z_thrust = quadrotor.control_altitude(&z_state, &z_state_des, &z_ff, dt);
         z_thrust = z_thrust.clamp(min_thrust, max_thrust);
 
         let net_thrust = quad_mass * gravity - z_thrust;
@@ -36,12 +37,16 @@ fn main() {
         // println!("Z state: {}", z_state);
 
         points.push(vec![x as f32, z_state[0]]);
+        target_points.push(vec![x as f32, z_state_des[0]]);
     }
 
     // plot
     let mut shapes = Shapes::new();
     shapes.set_line_width(1.0).set_edge_color("blue").set_face_color("#ffffff");
     shapes.draw_polyline(&points, false);
+
+    shapes.set_line_width(1.0).set_edge_color("red").set_face_color("#ffffff");
+    shapes.draw_polyline(&target_points, false);
     
     let mut plot = Plot::new();
     plot.set_range(0.0, iter as f64, 0.0, 100.0)
