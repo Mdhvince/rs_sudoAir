@@ -45,11 +45,13 @@ impl Quadrotor {
     }
 
     pub fn control_lateral(&self, u1: f32, state: &Vector6<f32>, desired: &State) -> f32 {
+        /* Controller for Computing a target roll angle */
+
         let y_error: f32 = desired.y - state[1];
         let y_error_dot: f32 = desired.y_dot - state[4];
 
-        let kp: f32 = 60.0;  // proportional gain
-        let kd: f32 = 150.0;  // derivative gain
+        let kp: f32 = 60.0;
+        let kd: f32 = 150.0;
 
         // acceleration_cmd on y
         let y_acc_cmd = kp * y_error + kd * y_error_dot + desired.y_ddot;
@@ -60,12 +62,13 @@ impl Quadrotor {
 
 
     pub fn control_attitude(&self, state: &Vector6<f32>, desired: &State, phi_cmd: f32) -> f32 {
+        /* Controller for Computing the moment about the x-axis */
 
         let phi_error: f32 = phi_cmd - state[2];
         let phi_error_dot: f32 = desired.phi_dot - state[5];
 
-        let kp: f32 = 60.0;  // proportional gain
-        let kd: f32 = 150.0;  // derivative gain
+        let kp: f32 = 60.0;
+        let kd: f32 = 150.0;
 
         // u2_bar command
         let u2_bar = kp * phi_error + kd * phi_error_dot + desired.phi_ddot;
