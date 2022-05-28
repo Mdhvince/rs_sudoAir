@@ -3,25 +3,17 @@ use plotpy::{Plot, Shapes};
 
 mod quadrotor;
 
-/*
-position, velocity, acceleration : are coming from the trajectory planner
-i.e:
-    - state_des = [pos, vel, acc]
-    - y_state_des = [pos, vel, acc]
-    - x_state_des = [pos, vel, acc]
- */
-
 
 fn main() {
 
     // trajectory planner
     let desired = quadrotor::State{
-        z: 2.0, y: 0.0, phi: 0.0,
+        z: 50.0, y: 100.0, phi: 0.0,
         z_dot: 0.1, y_dot: 0.1, phi_dot: 0.0,
         z_ddot: 0.0, y_ddot: 0.0, phi_ddot: 0.0
     };
 
-    let actual = quadrotor::State{
+    let mut actual = quadrotor::State{
         z: 0.0, y: 0.0, phi: 0.0,
         z_dot: 0.0, y_dot: 0.0, phi_dot: 0.0,
         z_ddot: 0.0, y_ddot: 0.0, phi_ddot: 0.0
@@ -33,13 +25,10 @@ fn main() {
     let min_thrust = 0.16;      // N
     let max_thrust = 0.56;      // N
     let I_x = 0.01;             // Moment of inertia around the x-axis
-
-    // actual state: z, y, phi, z_dot, y_dot, phi_dot
-    let mut state = Vector6::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
     
     // for simulation and plotting
     let dt: f32 = 0.01;
-    let iter = 5;
+    let iter = 100000;
     let mut points: Vec<Vec<f32>> = Vec::new();
     let mut target_points: Vec<Vec<f32>> = Vec::new();
 
@@ -48,28 +37,31 @@ fn main() {
 
     for x in 0..iter {
         let mut u1 = quadrotor.control_altitude(&actual, &desired, dt);  // Collective thrust
+        
         u1 = u1.clamp(min_thrust, max_thrust);
-
+        println!("U1: {}", u1);
+        
         let phi_cmd = quadrotor.control_lateral(u1, &actual, &desired);
-
+        
         // inner loop
         let u2 = quadrotor.control_attitude(&actual, &desired, phi_cmd);  // Moment about the the x-axis
         
         // for simulation and plotting
-        let phi = actual.phi;
-        let z_ddot: f32 = gravity - u1 * phi.cos() / quad_mass;
-        let y_ddot: f32 = u1 / quad_mass * phi.sin();
-        let phi_ddot: f32 = u2 / I_x; 
+        let z_ddot: f32 = ((u1 / quad_mass) * actual.phi.cos()) - gravity;
+        println!("zddot: {}", z_ddot);
+
+        let y_ddot: f32 = (u1 / quad_mass) * actual.phi.sin();
+        let phi_ddot: f32 = u2 / I_x;
         
-        println!("{}", actual.z);
-        update_state(dt, &actual, z_ddot, y_ddot, phi_ddot);
-        println!("{}", actual.z);
+        
+        update_state(dt, &mut actual, z_ddot, y_ddot, phi_ddot);
 
-        points.push(vec![x as f32, state[0]]);
-        target_points.push(vec![x as f32, desired.z]);
+        points.push(vec![actual.y, actual.z]);
+        target_points.push(vec![desired.y, desired.z]);
 
-        println!("{}", state);
-
+        println!("Altitude: {}", actual.z);
+        println!("lateral y: {}", actual.y);
+        println!("--------------------------");
     }
 
     // plot
@@ -81,14 +73,14 @@ fn main() {
     shapes.draw_polyline(&target_points, false);
     
     let mut plot = Plot::new();
-    plot.set_range(0.0, iter as f64, 0.0, 100.0)
+    plot.set_range(0.0, (desired.y+10.0 ) as f64, 0.0, (desired.z+10.0) as f64)
         .add(&shapes);
     _ = plot.save("plot.png");
 
 
 }
 
-fn update_state(dt: f32, actual: &quadrotor::State, z_ddot: f32, y_ddot: f32, phi_ddot: f32) -> () {
+fn update_state(dt: f32, actual: &mut quadrotor::State, z_ddot: f32, y_ddot: f32, phi_ddot: f32) -> () {
     /* Update state (approximation - only for simulation)
     step 1 : find what is current the acceleration and angular acceleration of the system
     step 2 : reuse these accelerations to update the associated velocity and rate of change (integral)
@@ -102,10 +94,10 @@ fn update_state(dt: f32, actual: &quadrotor::State, z_ddot: f32, y_ddot: f32, ph
     let new_state = actual_reformatted + state_dot * dt;
 
     // update actual
-    actual.z_dot = new_state[0];
-    actual.y_dot = new_state[1];
-    actual.phi_dot = new_state[2];
-    actual.z_ddot = new_state[3];
-    actual.y_ddot = new_state[4];
-    actual.phi_ddot = new_state[5];
+    actual.z = new_state[0];
+    actual.y = new_state[1];
+    actual.phi = new_state[2];
+    actual.z_dot += new_state[3];
+    actual.y_dot += new_state[4];
+    actual.phi_dot += new_state[5];
 }

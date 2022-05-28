@@ -1,12 +1,12 @@
-use nalgebra::Vector6;
 
+#[derive(Debug)]
 pub struct State {
     pub z: f32, pub y: f32, pub phi: f32,
     pub z_dot: f32, pub y_dot: f32, pub phi_dot: f32,
     pub z_ddot: f32, pub y_ddot: f32, pub phi_ddot: f32
 }
 
-
+#[derive(Debug)]
 pub struct Quadrotor {
     mass: f32, gravity: f32, integral_error: f32, I_x: f32
 }
@@ -19,7 +19,7 @@ impl Quadrotor {
         }
     }
 
-    pub fn control_altitude(&mut self, state: &Vector6<f32>, desired: &State, dt: f32) -> f32 {
+    pub fn control_altitude(&mut self, actual: &State, desired: &State, dt: f32) -> f32 {
         /*
         Inputs
             - state: Array of 6 float containing the current: pos_z, pos_y, angle_phi, vel_z, vel_y, angle_vel_phi
@@ -27,31 +27,30 @@ impl Quadrotor {
         Output
             - Force/Thrust to apply to the rotors in Newton
         */
-        let z_error: f32 = desired.z - state[0];
-        let z_error_dot: f32 = desired.z_dot - state[3];
+        let z_error: f32 = desired.z - actual.z;
+        let z_error_dot: f32 = desired.z_dot - actual.z_dot;
         self.integral_error += z_error * dt;
 
-        let kp: f32 = 60.0;  // proportional gain
+        let kp: f32 = 50.0;  // proportional gain
         let kd: f32 = 150.0;  // derivative gain
         let ki: f32 = 8.0;  // integral gain
 
         // acceleration command u1_bar
         let acc_cmd: f32 = kp * z_error + kd * z_error_dot  + ki * self.integral_error + desired.z_ddot;
 
-        // collective thrust in Newton : u1 = m*a
-        let phi_actual = state[2];
-        let u1: f32 = self.mass * (self.gravity - acc_cmd) / phi_actual.cos();
+        // collective thrust in Newton
+        let u1: f32 = self.mass * (acc_cmd - self.gravity) / actual.phi.cos();
         u1
     }
 
-    pub fn control_lateral(&self, u1: f32, state: &Vector6<f32>, desired: &State) -> f32 {
+    pub fn control_lateral(&self, u1: f32, actual: &State, desired: &State) -> f32 {
         /* Controller for Computing a target roll angle */
 
-        let y_error: f32 = desired.y - state[1];
-        let y_error_dot: f32 = desired.y_dot - state[4];
+        let y_error: f32 = desired.y - actual.y;
+        let y_error_dot: f32 = desired.y_dot - actual.y_dot;
 
-        let kp: f32 = 60.0;
-        let kd: f32 = 150.0;
+        let kp: f32 = 180.0;
+        let kd: f32 = 5.0;
 
         // acceleration_cmd on y
         let y_acc_cmd = kp * y_error + kd * y_error_dot + desired.y_ddot;
@@ -61,13 +60,13 @@ impl Quadrotor {
     }
 
 
-    pub fn control_attitude(&self, state: &Vector6<f32>, desired: &State, phi_cmd: f32) -> f32 {
+    pub fn control_attitude(&self, actual: &State, desired: &State, phi_cmd: f32) -> f32 {
         /* Controller for Computing the moment about the x-axis */
 
-        let phi_error: f32 = phi_cmd - state[2];
-        let phi_error_dot: f32 = desired.phi_dot - state[5];
+        let phi_error: f32 = phi_cmd - actual.phi;
+        let phi_error_dot: f32 = desired.phi_dot - actual.phi_dot;
 
-        let kp: f32 = 60.0;
+        let kp: f32 = 40.0;
         let kd: f32 = 150.0;
 
         // u2_bar command
