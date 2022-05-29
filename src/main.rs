@@ -3,20 +3,29 @@ use plotpy::{Plot, Shapes};
 
 mod quadrotor;
 
+// crazyflie's moment of inertia : https://groups.csail.mit.edu/robotics-center/public_papers/Landry15.pdf
 
 fn main() {
 
     // trajectory planner
     let desired = quadrotor::State{
-        z: 50.0, y: 100.0, phi: 0.0,
-        z_dot: 0.1, y_dot: 0.1, phi_dot: 0.0,
-        z_ddot: 0.0, y_ddot: 0.0, phi_ddot: 0.0
+        x: 0.0, y: 100.0, z: 50.0,
+        phi: 0.0, theta: 0.0, psi: 0.0,
+        x_dot: 0.0, y_dot: 0.1, z_dot: 0.1,
+        phi_dot: 0.0, theta_dot: 0.0, psi_dot: 0.0,
+        p: 0.0, q: 0.0, r: 0.0,
+        x_ddot: 0.0, y_ddot: 0.0, z_ddot: 0.0,
+        phi_ddot: 0.0, theta_ddot: 0.0, psi_ddot: 0.0
     };
 
     let mut actual = quadrotor::State{
-        z: 0.0, y: 0.0, phi: 0.0,
-        z_dot: 0.0, y_dot: 0.0, phi_dot: 0.0,
-        z_ddot: 0.0, y_ddot: 0.0, phi_ddot: 0.0
+        x: 0.0, y: 0.0, z: 0.0,
+        phi: 0.0, theta: 0.0, psi: 0.0,
+        x_dot: 0.0, y_dot: 0.0, z_dot: 0.0,
+        phi_dot: 0.0, theta_dot: 0.0, psi_dot: 0.0,
+        p: 0.0, q: 0.0, r: 0.0,
+        x_ddot: 0.0, y_ddot: 0.0, z_ddot: 0.0,
+        phi_ddot: 0.0, theta_ddot: 0.0, psi_ddot: 0.0
     };
 
     // params
@@ -24,22 +33,25 @@ fn main() {
     let quad_mass = 0.027;      // 27g
     let min_thrust = 0.16;      // N
     let max_thrust = 0.56;      // N
-    let I_x = 0.01;             // Moment of inertia around the x-axis
+    let i_x = 0.01;             // Moment of inertia around the x-axis
     
     // for simulation and plotting
     let dt: f32 = 0.01;
-    let iter = 100000;
+    let iter = 10000;
     let mut points: Vec<Vec<f32>> = Vec::new();
     let mut target_points: Vec<Vec<f32>> = Vec::new();
 
     // init
-    let mut quadrotor = quadrotor::Quadrotor::new(quad_mass, gravity, I_x);
+    let mut quadrotor = quadrotor::Quadrotor::new(quad_mass, gravity, i_x);
 
-    for x in 0..iter {
+    for _ in 0..iter {
+        println!("Altitude: {}", actual.z);
+        println!("lateral y: {}", actual.y);
+        println!("--------------------------");
+
         let mut u1 = quadrotor.control_altitude(&actual, &desired, dt);  // Collective thrust
         
         u1 = u1.clamp(min_thrust, max_thrust);
-        println!("U1: {}", u1);
         
         let phi_cmd = quadrotor.control_lateral(u1, &actual, &desired);
         
@@ -47,21 +59,15 @@ fn main() {
         let u2 = quadrotor.control_attitude(&actual, &desired, phi_cmd);  // Moment about the the x-axis
         
         // for simulation and plotting
+        // these accelerations help us predict were the quadrotor will be in the future after applying integral on them
         let z_ddot: f32 = ((u1 / quad_mass) * actual.phi.cos()) - gravity;
-        println!("zddot: {}", z_ddot);
-
         let y_ddot: f32 = (u1 / quad_mass) * actual.phi.sin();
-        let phi_ddot: f32 = u2 / I_x;
+        let phi_ddot: f32 = u2 / i_x;
         
         
         update_state(dt, &mut actual, z_ddot, y_ddot, phi_ddot);
-
         points.push(vec![actual.y, actual.z]);
         target_points.push(vec![desired.y, desired.z]);
-
-        println!("Altitude: {}", actual.z);
-        println!("lateral y: {}", actual.y);
-        println!("--------------------------");
     }
 
     // plot

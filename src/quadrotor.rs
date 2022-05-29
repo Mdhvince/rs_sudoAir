@@ -1,21 +1,27 @@
 
 #[derive(Debug)]
 pub struct State {
-    pub z: f32, pub y: f32, pub phi: f32,
-    pub z_dot: f32, pub y_dot: f32, pub phi_dot: f32,
-    pub z_ddot: f32, pub y_ddot: f32, pub phi_ddot: f32
+    pub x: f32, pub y: f32, pub z: f32,                         // locations
+    pub phi: f32, pub theta: f32, pub psi: f32,                 // orientations
+    pub x_dot: f32, pub y_dot: f32, pub z_dot: f32,             // velocities
+    pub phi_dot: f32, pub theta_dot: f32, pub psi_dot: f32,     // angular velocities in the world frame
+    pub p: f32, pub q: f32, pub r: f32,                         // angular velocities in the body frame
+    pub x_ddot: f32, pub y_ddot: f32, pub z_ddot: f32,          // accelerations
+    pub phi_ddot: f32, pub theta_ddot: f32, pub psi_ddot: f32   // angular accelerations
 }
+
+
 
 #[derive(Debug)]
 pub struct Quadrotor {
-    mass: f32, gravity: f32, integral_error: f32, I_x: f32
+    mass: f32, gravity: f32, integral_error: f32, i_x: f32
 }
 
 impl Quadrotor {
 
-    pub fn new(mass: f32, gravity: f32, I_x: f32) -> Quadrotor {
+    pub fn new(mass: f32, gravity: f32, i_x: f32) -> Quadrotor {
         Quadrotor {
-            mass: mass, gravity: gravity, integral_error: 0.0, I_x: I_x
+            mass: mass, gravity: gravity, integral_error: 0.0, i_x: i_x
         }
     }
 
@@ -71,7 +77,7 @@ impl Quadrotor {
 
         // u2_bar command
         let u2_bar = kp * phi_error + kd * phi_error_dot + desired.phi_ddot;
-        let u2 = u2_bar * self.I_x;
+        let u2 = u2_bar * self.i_x;
         u2
     }
 }
