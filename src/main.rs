@@ -3,7 +3,6 @@ use plotpy::{Plot, Shapes};
 
 mod quadrotor;
 
-// crazyflie's moment of inertia : https://groups.csail.mit.edu/robotics-center/public_papers/Landry15.pdf
 
 fn main() {
 
