@@ -28,13 +28,55 @@ fn altitude_controller(state: &HashMap<&str, f32>,
     let velocity_error = state_des["z_dot"] - state["z_dot"];
     params.insert("integral_error_z", params["integral_error_z"] + position_error * params["dt"]);
 
-    let acc_z = state_des["z_ddot"] 
-                + params["kv_z"] * velocity_error 
-                + params["kp_z"] * position_error
-                + params["ki_z"] * params["integral_error_z"];
+    let z_ddot_c = state_des["z_ddot"] 
+                   + params["kv_z"] * velocity_error 
+                   + params["kp_z"] * position_error
+                   + params["ki_z"] * params["integral_error_z"];
     
-    let u1 = mass * (acc_z + params["gravity"]);               // thrust u1 cmd
+    let u1 = mass * (params["gravity"] + z_ddot_c);               // thrust u1 cmd
     u1
+}
+
+fn position_controller(state: &HashMap<&str, f32>,
+    state_des: &HashMap<&str, f32>,
+    params: &mut HashMap<&str, f32>) -> (f32, f32, f32){
+
+    let x_error = state_des["x"] - state["x"];
+    let x_dot_error = state_des["x_dot"] - state["x_dot"];
+    params.insert("integral_error_x", params["integral_error_x"] + x_error * params["dt"]);
+    let x_ddot_c = state_des["x_ddot"]
+                    + params["kv_xy"] * x_dot_error 
+                    + params["kp_xy"] * x_error
+                    + params["ki_xy"] * params["integral_error_x"];
+    
+    let y_error = state_des["y"] - state["y"];
+    let y_dot_error = state_des["y_dot"] - state["y_dot"];
+    params.insert("integral_error_y", params["integral_error_y"] + y_error * params["dt"]);
+    let y_ddot_c = state_des["y_ddot"]
+                    + params["kv_xy"] * y_dot_error 
+                    + params["kp_xy"] * y_error
+                    + params["ki_xy"] * params["integral_error_y"];
+
+    let phi_c = (1.0 / params["gravity"]) * (x_ddot_c * state_des["psi"].sin() - y_ddot_c * state_des["psi"].cos());
+    let theta_c = (1.0 / params["gravity"]) * (x_ddot_c * state_des["psi"].cos() + y_ddot_c * state_des["psi"].sin());
+    let psi_c = state_des["psi"];
+
+    (phi_c, theta_c, psi_c)
+}
+
+fn attitude_controller(state: &HashMap<&str, f32>,
+    params: &HashMap<&str, f32>,
+    phi_c: &f32, theta_c: &f32, psi_c: &f32) -> (f32, f32, f32){
+    
+    let p_c = 0.0;
+    let q_c = 0.0;
+    let r_c = 0.0;
+
+    let u2_roll = params["kp_angle"] * (phi_c - state["phi"]) + params["kv_angle"] * (p_c - state["p"]);
+    let u2_pitch = params["kp_angle"] * (theta_c - state["theta"]) + params["kv_angle"] * (q_c - state["q"]);
+    let u2_yaw = params["kp_angle"] * (psi_c - state["psi"]) + params["kv_angle"] * (r_c - state["r"]);
+    
+    (u2_roll, u2_pitch, u2_yaw)
 }
 
 
@@ -75,19 +117,34 @@ fn main() {
     
     let mut params: HashMap<&str, f32> = HashMap::from([
         ("integral_error_z", 0.0),
+        ("integral_error_x", 0.0),
+        ("integral_error_y", 0.0),
         ("gravity", 9.81),
         ("kv_z", 40.0),
         ("kp_z", 130.0),
         ("ki_z", 0.0),
+        ("kv_xy", 40.0),
+        ("kp_xy", 130.0),
+        ("ki_xy", 0.0),
+        ("kv_angle", 1.0),
+        ("kp_angle", 5.0),
+        ("ki_angle", 0.0),
         ("dt", 0.1)
     ]);
     
     let initial_state: HashMap<&str, f32> = HashMap::from([
-        ("z", 0.0), ("z_dot", 0.0), ("z_ddot", 0.0)
+        ("z", 0.0), ("z_dot", 0.0), ("z_ddot", 0.0),
+        ("y", 0.0), ("y_dot", 0.0), ("y_ddot", 0.0),
+        ("x", 0.0), ("x_dot", 0.0), ("x_ddot", 0.0),
+        ("phi", 0.0), ("theta", 0.0), ("psi", 0.0),
+        ("p", 0.0), ("q", 0.0), ("r", 0.0)
     ]);
 
     let state_des: HashMap<&str, f32> = HashMap::from([
-        ("z", 10.0), ("z_dot", 0.01), ("z_ddot", 0.0)
+        ("z", 10.0), ("z_dot", 0.01), ("z_ddot", 0.0),
+        ("y", 100.0), ("y_dot", 0.1), ("y_ddot", 0.0),
+        ("x", 0.0), ("x_dot", 0.0), ("x_ddot", 0.0),
+        ("psi", 0.0)
     ]);
     
     
@@ -97,6 +154,12 @@ fn main() {
     for _x in 0..1000{
         let u1 = altitude_controller(&quadrotor.state, &state_des, &mut params, &m);
         let u1 = u1.clamp(quadrotor.u_min, quadrotor.u_max);
+        let (phi_c, theta_c, psi_c) = position_controller(&quadrotor.state, &state_des, &mut params);  // we will need to clamp them too
+        
+        //inner-loop
+        let u2 = attitude_controller(&quadrotor.state, &params, &phi_c, &theta_c, &psi_c);
+
+        
         
         points.push((_x as f64, quadrotor.state["z"] as f64));
         if _x % 15 == 0 {
@@ -104,7 +167,6 @@ fn main() {
         }
 
         quadrotor.update_state(&params["dt"], &u1);
-        println!("{}", quadrotor.state["z"]);
     }
     
     let (min_x, max_x, min_y, max_y) = (0.0, 1000.0, 0.0, state_des["z"] as f64 + 10.0);
