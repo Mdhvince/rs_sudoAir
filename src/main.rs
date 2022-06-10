@@ -11,11 +11,13 @@ use quadrotor::vehicle::Quadrotor;
 // use nalgebra::Vector3;
 
 // from sim in matlab
-// gravity: 9.8100
 //           mass: 0.1800
 //     arm_length: 0.0860
 //          u_min: 0
-//          u_max: 2.1190
+//          u_max: 3.5316
+// I = 0.2500         0    0.0026
+    // 0    0.2320         0
+    // 0.0026         0    0.3738
 
 
 
@@ -163,23 +165,14 @@ fn main() {
         
         //inner-loop
         let u2 = attitude_controller(&quadrotor.state, &state_des, &params, &phi_c, &theta_c, &psi_c);
-        motor_controller(&quadrotor, u1, u2);  // will be used to send command to the motors (not completed yet)
-        
-
-        /* update state
-        x_ddot = g * (theta * cos(psi) + phi * sin(psi))
-        y_ddot = g * (theta * sin(psi) - phi * cos(psi))
-        z_ddot = u1 / mass - 9.81;
-        */
-
-        
+        motor_controller(&quadrotor, u1, u2);  // will be used to send command to the motors (not completed yet)        
         
         points.push((_x as f64, quadrotor.state["z"] as f64));
         if _x % 15 == 0 {
             targets.push((_x as f64, state_des["z"] as f64));
         }
 
-        quadrotor.update_state(&params["dt"], &u1);
+        quadrotor.update_state(&u1, &u2, &params);
     }
     
     let (min_x, max_x, min_y, max_y) = (0.0, 1000.0, 0.0, state_des["z"] as f64 + 10.0);

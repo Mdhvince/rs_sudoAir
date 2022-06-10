@@ -156,7 +156,33 @@ u2 = [
     [kp(psi_c - psi) + kv(r_c - r)]
 ]
 
+/* update state
+        x_ddot = g * (theta * cos(psi) + phi * sin(psi))
+        y_ddot = g * (theta * sin(psi) - phi * cos(psi))
+        z_ddot = u1 / mass - 9.81;
+        p_dot = (u2.0 - r * q * (izz - iyy)) / ixx
+        q_dot = (u2.1 - r * self.p * (ixx - izz)) / iyy
+        r_dot = (u2.2 - q * self.p * (iyy - ixx)) / izz
 
+        
+
+        we know that
+        [p, q, r] = [[cos(theta), 0, -cos(phi)*sin(theta)],   *  [phi_dot, theta_dot, psi_dot]
+                     [0, 1, sin(phi)],
+                     [sin(theta), 0, cos(phi)*cos(theta)]]
+
+        AND 
+        c = a * b
+        b = Inv(A) * c
+
+        so,
+        [phi_dot, theta_dot, psi_dot] = inv(...) * [p, q, r]
+        
+        phi_dot = (p*cos(theta))/(cos(theta)^2 + sin(theta)^2) + (r*sin(theta))/(cos(theta)^2 + sin(theta)^2)
+        theta_dot = q - (r*cos(theta)*sin(phi))/(cos(phi)*cos(theta)^2 + cos(phi)*sin(theta)^2) + (p*sin(phi)*sin(theta))/(cos(phi)*cos(theta)^2 + cos(phi)*sin(theta)^2)
+        psi_dot = (r*cos(theta))/(cos(phi)*cos(theta)^2 + cos(phi)*sin(theta)^2) - (p*sin(theta))/(cos(phi)*cos(theta)^2 + cos(phi)*sin(theta)^2)
+
+        */
 ```
 
 
