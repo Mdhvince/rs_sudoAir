@@ -5,7 +5,10 @@ pub mod vehicle {
         pub state: HashMap<&'a str, f32>,
         pub mass: f32,
         pub u_min: f32,
-        pub u_max: f32
+        pub u_max: f32,
+        pub ixx: f32,
+        pub iyy: f32,
+        pub izz: f32
     }
 
     impl<'a> Quadrotor<'a> {
@@ -15,7 +18,10 @@ pub mod vehicle {
                 mass: mass,
                 state: initial_state,
                 u_min: 0.0,
-                u_max: 1.2 * mass * 9.81
+                u_max: 1.2 * mass * 9.81,
+                ixx: 1.0,
+                iyy: 1.0,
+                izz: 1.0
             }
         }
 

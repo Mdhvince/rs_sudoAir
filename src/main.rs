@@ -65,18 +65,23 @@ fn position_controller(state: &HashMap<&str, f32>,
 }
 
 fn attitude_controller(state: &HashMap<&str, f32>,
-    params: &HashMap<&str, f32>,
-    phi_c: &f32, theta_c: &f32, psi_c: &f32) -> (f32, f32, f32){
+                       state_des: &HashMap<&str, f32>,
+                       params: &HashMap<&str, f32>,
+                       phi_c: &f32, theta_c: &f32, psi_c: &f32) -> (f32, f32, f32){
     
     let p_c = 0.0;
     let q_c = 0.0;
-    let r_c = 0.0;
+    let r_c = state_des["psi_dot"];
 
     let u2_roll = params["kp_angle"] * (phi_c - state["phi"]) + params["kv_angle"] * (p_c - state["p"]);
     let u2_pitch = params["kp_angle"] * (theta_c - state["theta"]) + params["kv_angle"] * (q_c - state["q"]);
     let u2_yaw = params["kp_angle"] * (psi_c - state["psi"]) + params["kv_angle"] * (r_c - state["r"]);
     
-    (u2_roll, u2_pitch, u2_yaw)
+    (u2_roll, u2_pitch, u2_yaw) // u2
+}
+
+fn motor_controller(quadrotor: &Quadrotor, u1: f32, u2: (f32, f32, f32)) -> () {
+    let M = (quadrotor.ixx * u2.0, quadrotor.iyy * u2.1, quadrotor.izz * u2.2);
 }
 
 
@@ -144,7 +149,7 @@ fn main() {
         ("z", 10.0), ("z_dot", 0.01), ("z_ddot", 0.0),
         ("y", 100.0), ("y_dot", 0.1), ("y_ddot", 0.0),
         ("x", 0.0), ("x_dot", 0.0), ("x_ddot", 0.0),
-        ("psi", 0.0)
+        ("psi", 0.0), ("psi_dot", 0.1)
     ]);
     
     
@@ -157,7 +162,15 @@ fn main() {
         let (phi_c, theta_c, psi_c) = position_controller(&quadrotor.state, &state_des, &mut params);  // we will need to clamp them too
         
         //inner-loop
-        let u2 = attitude_controller(&quadrotor.state, &params, &phi_c, &theta_c, &psi_c);
+        let u2 = attitude_controller(&quadrotor.state, &state_des, &params, &phi_c, &theta_c, &psi_c);
+        motor_controller(&quadrotor, u1, u2);  // will be used to send command to the motors (not completed yet)
+        
+
+        /* update state
+        x_ddot = g * (theta * cos(psi) + phi * sin(psi))
+        y_ddot = g * (theta * sin(psi) - phi * cos(psi))
+        z_ddot = u1 / mass - 9.81;
+        */
 
         
         
