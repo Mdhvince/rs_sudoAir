@@ -17,7 +17,7 @@ pub mod vehicle {
             Quadrotor::<'a> {
                 mass: mass,
                 state: initial_state,
-                u_min: 0.0,
+                u_min: 0.2,
                 u_max: 3.5316,
                 ixx: 1.0,
                 iyy: 1.0,
@@ -26,33 +26,34 @@ pub mod vehicle {
         }
 
         pub fn update_state(&mut self,
+                            dt_update: &f32,
                             u1: &f32,
                             u2: &(f32, f32, f32),
-                            params: &HashMap<&'a str, f32>) -> () {
+                            params: &crate::params::Params) -> () {
             
-            let z_ddot = u1 / &self.mass - params["gravity"];
-            let x_ddot = params["gravity"]
+            let z_ddot = u1 / &self.mass - params.gravity;
+            let x_ddot = params.gravity
                          * (&self.state["theta"] * &self.state["psi"].cos() + &self.state["phi"] * &self.state["psi"].sin());
-            let y_ddot = params["gravity"]
+            let y_ddot = params.gravity
                          * (&self.state["theta"] * &self.state["psi"].sin() - &self.state["phi"] * &self.state["psi"].cos());
             
             let _ = &self.state.insert("x_ddot", x_ddot);
             let _ = &self.state.insert("y_ddot", y_ddot);
             let _ = &self.state.insert("z_ddot", z_ddot);
-            let _ = &self.state.insert("x_dot", &self.state["x_dot"] + &self.state["x_ddot"] * params["dt"]);
-            let _ = &self.state.insert("y_dot", &self.state["y_dot"] + &self.state["y_ddot"] * params["dt"]);
-            let _ = &self.state.insert("z_dot", &self.state["z_dot"] + &self.state["z_ddot"] * params["dt"]);
-            let _ = &self.state.insert("x", &self.state["x"] + &self.state["x_dot"] * params["dt"]);
-            let _ = &self.state.insert("y", &self.state["y"] + &self.state["y_dot"] * params["dt"]);
-            let _ = &self.state.insert("z", &self.state["z"] + &self.state["z_dot"] * params["dt"]);
+            let _ = &self.state.insert("x_dot", &self.state["x_dot"] + &self.state["x_ddot"] * dt_update);
+            let _ = &self.state.insert("y_dot", &self.state["y_dot"] + &self.state["y_ddot"] * dt_update);
+            let _ = &self.state.insert("z_dot", &self.state["z_dot"] + &self.state["z_ddot"] * dt_update);
+            let _ = &self.state.insert("x", &self.state["x"] + &self.state["x_dot"] * dt_update);
+            let _ = &self.state.insert("y", &self.state["y"] + &self.state["y_dot"] * dt_update);
+            let _ = &self.state.insert("z", &self.state["z"] + &self.state["z_dot"] * dt_update);
 
             let p_dot = (u2.0 - &self.state["r"] * &self.state["q"] * (&self.izz - &self.iyy)) / &self.ixx;
             let q_dot = (u2.1 - &self.state["r"] * &self.state["p"] * (&self.ixx - &self.izz)) / &self.iyy;
             let r_dot = (u2.2 - &self.state["q"] * &self.state["p"] * (&self.iyy - &self.ixx)) / &self.izz;
 
-            let _ = &self.state.insert("p", &self.state["p"] + p_dot * params["dt"]);
-            let _ = &self.state.insert("q", &self.state["q"] + q_dot * params["dt"]);
-            let _ = &self.state.insert("r", &self.state["r"] + r_dot * params["dt"]);
+            let _ = &self.state.insert("p", &self.state["p"] + p_dot * dt_update);
+            let _ = &self.state.insert("q", &self.state["q"] + q_dot * dt_update);
+            let _ = &self.state.insert("r", &self.state["r"] + r_dot * dt_update);
             
             // euler derivatives
             let c_phi_c_theta_square = &self.state["phi"].cos() * &self.state["theta"].cos().powf(2.0);
@@ -77,9 +78,9 @@ pub mod vehicle {
             let _ = &self.state.insert("phi_dot", phi_dot);
             let _ = &self.state.insert("theta_dot", theta_dot);
             let _ = &self.state.insert("psi_dot", psi_dot);
-            let _ = &self.state.insert("phi", &self.state["phi"] + &self.state["phi_dot"] * params["dt"]);
-            let _ = &self.state.insert("theta", &self.state["theta"] + &self.state["theta_dot"] * params["dt"]);
-            let _ = &self.state.insert("psi", &self.state["psi"] + &self.state["psi_dot"] * params["dt"]);
+            let _ = &self.state.insert("phi", &self.state["phi"] + &self.state["phi_dot"] * dt_update);
+            let _ = &self.state.insert("theta", &self.state["theta"] + &self.state["theta_dot"] * dt_update);
+            let _ = &self.state.insert("psi", &self.state["psi"] + &self.state["psi_dot"] * dt_update);
             
         }
 
