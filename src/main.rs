@@ -1,42 +1,11 @@
 use std::collections::HashMap;
-use plotlib::repr::Plot;
-use plotlib::view::ContinuousView;
-use plotlib::page::Page;
-use plotlib::style::{PointStyle, LineStyle, LineJoin};
+use gnuplot::*;
 
 mod params;
 use params::Params;
 mod quadrotor;
 use quadrotor::vehicle::Quadrotor;
 
-fn plot_trajectories(points: Vec<(f64, f64)>,
-                     targets: Vec<(f64, f64)>,
-                     min_x: f64, max_x: f64,
-                     min_y: f64, max_y: f64,
-                     filename: &str){
-    let plot_target: Plot = Plot::new(targets).point_style(
-        PointStyle::new()
-        .colour("#000000")
-        .size(3.0)
-    );
-
-    let plot_state: Plot = Plot::new(points).line_style(
-        LineStyle::new()
-        .colour("#DD3355")
-        .linejoin(LineJoin::Round)
-    );
-
-    
-
-    let canvas = ContinuousView::new()
-        .add(plot_target).add(plot_state)
-        .x_range(min_x, max_x)
-        .y_range(min_y, max_y)
-        .x_label("Pos X")
-        .y_label("Altitude Z");
-
-    Page::single(&canvas).save(filename).unwrap();
-}
 
 fn altitude_controller(state: &HashMap<&str, f32>,
                        state_des: &HashMap<&str, f32>,
@@ -108,8 +77,15 @@ fn attitude_controller(state: &HashMap<&str, f32>,
 /* ----------------------------------------------------- */
 
 fn main() {
-    let mut points: Vec<(f64, f64)> = Vec::new();
-    let mut targets: Vec<(f64, f64)> = Vec::new();
+    // let mut points: Vec<(f64, f64)> = Vec::new();
+    // let mut targets: Vec<(f64, f64)> = Vec::new();
+    let mut points_x: Vec<f64> = Vec::new();
+    let mut points_y: Vec<f64> = Vec::new();
+    let mut points_z: Vec<f64> = Vec::new();
+    let mut target_x: Vec<f64> = Vec::new();
+    let mut target_y: Vec<f64> = Vec::new();
+    let mut target_z: Vec<f64> = Vec::new();
+
     let mut params = Params::new();
     
     let initial_state: HashMap<&str, f32> = HashMap::from([
@@ -121,9 +97,9 @@ fn main() {
     ]);
 
     let state_des: HashMap<&str, f32> = HashMap::from([
-        ("x", 60.0), ("x_dot", 0.01), ("x_ddot", 0.0),
-        ("y", 0.0), ("y_dot", 0.0), ("y_ddot", 0.0),
-        ("z", 10.0), ("z_dot", 0.01), ("z_ddot", 0.0),
+        ("x", 50.0), ("x_dot", 0.01), ("x_ddot", 0.0),
+        ("y", 30.0), ("y_dot", 0.01), ("y_ddot", 0.0),
+        ("z", 60.0), ("z_dot", 0.01), ("z_ddot", 0.0),
         ("psi", 0.0), ("psi_dot", 0.0)
     ]);
     
@@ -133,7 +109,11 @@ fn main() {
     let num_iter: usize = 1000;
     let inner_loop_iter: usize = num_iter/10;
     let dt_update = params.dt / inner_loop_iter as f32;
-    targets.push((state_des["x"] as f64, state_des["z"] as f64));
+    
+    // targets.push((state_des["x"] as f64, state_des["z"] as f64));
+    target_x.push(state_des["x"] as f64);
+    target_y.push(state_des["y"] as f64);
+    target_z.push(state_des["z"] as f64);
 
     for _x in 0..num_iter{
         let u1 = altitude_controller(&quadrotor.state,
@@ -149,7 +129,10 @@ fn main() {
         theta_c = theta_c.clamp(-30.0 * deg_to_rad, 30.0 * deg_to_rad);
         psi_c = psi_c.clamp(-360.0 * deg_to_rad, 360.0 * deg_to_rad);
         
-        points.push((quadrotor.state["x"] as f64, quadrotor.state["z"] as f64));
+        // points.push((quadrotor.state["x"] as f64, quadrotor.state["z"] as f64));
+        points_x.push(quadrotor.state["x"] as f64);
+        points_y.push(quadrotor.state["y"] as f64);
+        points_z.push(quadrotor.state["z"] as f64);
 
         //inner-loop
         for _ in 0..inner_loop_iter{
@@ -160,13 +143,20 @@ fn main() {
             
             quadrotor.update_state(&dt_update, &u1, &u2, &params);
         }
-        println!("----------------------------------");
-        println!("Z: {}", quadrotor.state["z"]);
-        println!("Y: {}", quadrotor.state["y"]); 
-        println!("X: {}", quadrotor.state["x"]);
+        // println!("----------------------------------");
+        // println!("Z: {}", quadrotor.state["z"]);
+        // println!("Y: {}", quadrotor.state["y"]); 
+        // println!("X: {}", quadrotor.state["x"]);
     }
     
-    let (min_x, max_x, min_y, max_y) = (
-        0.0, state_des["x"] as f64 + 100.0, 0.0, state_des["z"] as f64 + 10.0);
-    plot_trajectories(points, targets, min_x, max_x, min_y, max_y, "pid_3d.svg");
+    
+    let mut fg = Figure::new();
+    fg.axes3d()
+    .set_x_label("Pos X {}", &[])
+    .set_y_label("Pos Y", &[])
+    .set_z_label("Alt Z", &[])
+    .lines_points(&points_x, &points_y, &points_z,&[PointSymbol('o'), PointSize(1.0), Caption("Actual"), Color("blue")])
+    .points(&target_x, &target_y, &target_z, &[PointSymbol('*'), PointSize(5.0), Caption("Target"), Color("red")]);
+    // fg.set_scale(1.0, 1.0);
+    fg.show().unwrap();
 }

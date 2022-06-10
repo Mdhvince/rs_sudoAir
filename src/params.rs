@@ -13,9 +13,9 @@
             Params {
                 integral_error_z: 0.0, integral_error_x: 0.0, integral_error_y: 0.0,
                 
-                kv_z: 20.0, kp_z: 30.0, ki_z: 0.0,
-                kv_xy: 100.0, kp_xy: 5.0, ki_xy: 0.0,
-                kv_angle: 1.0, kp_angle: 1.0, ki_angle: 1.0,
+                kv_z: 60.0, kp_z: 40.0, ki_z: 0.0,
+                kv_xy: 90.0, kp_xy: 22.0, ki_xy: 0.0,
+                kv_angle: 15.0, kp_angle: 15.0, ki_angle: 0.0,
 
                 dt: 0.1,
                 gravity: 9.81
